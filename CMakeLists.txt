@@ -41,6 +41,7 @@ endif(APPLE)
 set(obs-vst_SOURCES
 	obs-vst.cpp
 	VSTPlugin.cpp
+	VSTScanner.cpp
 	EditorWidget.cpp)
 
 if(APPLE)
@@ -51,18 +52,21 @@ if(APPLE)
 elseif(WIN32)
 	list(APPEND obs-vst_SOURCES
 		win/VSTPlugin-win.cpp
+		win/VSTScanner-win.cpp
 		win/EditorWidget-win.cpp)
 
 elseif("${CMAKE_SYSTEM_NAME}" MATCHES "Linux")
 	list (APPEND obs-vst_SOURCES
 		linux/VSTPlugin-linux.cpp
+		linux/VSTScanner-linux.cpp
 		linux/EditorWidget-linux.cpp)
 endif()
 
 list(APPEND obs-vst_HEADERS
 	headers/vst-plugin-callbacks.hpp
 	headers/EditorWidget.h
-	headers/VSTPlugin.h)
+	headers/VSTPlugin.h
+	headers/VSTScanner.h)
 
 add_library(obs-vst MODULE
 	${obs-vst_SOURCES}
