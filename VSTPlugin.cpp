@@ -18,9 +18,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "headers/VSTPlugin.h"
 
+
+QMutex		VSTPlugin::initMutex = QMutex();
+VSTPlugin	*VSTPlugin::initPlugin = 0;
+
+
 VSTPlugin::VSTPlugin(obs_source_t *sourceContext) : sourceContext{sourceContext}
 {
-
+	currentId       = 0;
 	int numChannels = VST_MAX_CHANNELS;
 	int blocksize   = BLOCK_SIZE;
 
@@ -58,7 +63,7 @@ VSTPlugin::~VSTPlugin()
 	unloadEffect();
 }
 
-void VSTPlugin::loadEffectFromPath(std::string path)
+void VSTPlugin::loadEffectFromPath(std::string path, int32_t id)
 {
 	if (this->pluginPath.compare(path) != 0) {
 		closeEditor();
@@ -68,6 +73,13 @@ void VSTPlugin::loadEffectFromPath(std::string path)
 
 	if (!effect) {
 		pluginPath = path;
+		if (!loadLibrary()) {
+			blog(LOG_WARNING,
+			     "VST Plug-in: Can't load "
+			     "library!");
+			return;
+		}
+
 		effect     = loadEffect();
 
 		if (!effect) {
@@ -84,6 +96,12 @@ void VSTPlugin::loadEffectFromPath(std::string path)
 		if (effect->magic != kEffectMagic) {
 			blog(LOG_WARNING, "VST Plug-in's magic number is bad");
 			return;
+		}
+
+		// check, if we have a shell plugin
+		const auto category = effect->dispatcher(effect, effGetPlugCategory, 0, 0, nullptr, 0);
+		if (kPlugCategShell == category) {
+			bool changed = updateShellItemList();
 		}
 
 		// It is better to invoke this code after checking magic number
@@ -178,6 +196,10 @@ bool VSTPlugin::isEditorOpen()
 	return editorWidget ? true : false;
 }
 
+const VstShellItemList *VSTPlugin::getShellItems() const {
+	return &shellItems;
+}
+
 void VSTPlugin::openEditor()
 {
 	if (effect && !editorWidget) {
@@ -237,6 +259,25 @@ intptr_t VSTPlugin::hostCallback(AEffect *effect, int32_t opcode, int32_t index,
 	}
 
 	return result;
+}
+
+bool VSTPlugin::updateShellItemList()
+{
+	VstShellItemList items;
+
+	// search for all plugins in the shell
+	char buffer[41];
+	while (true) {
+		memset(buffer, 0, 41);
+		int32_t pluginId = effect->dispatcher(effect, effShellGetNextPlugin, 0, 0, buffer, 0);
+		if (pluginId == 0 || buffer[0] == '\0') {
+			break;
+		}
+		items.append(VstShellItem(currentId, buffer));
+	}
+	
+
+	return false;
 }
 
 std::string VSTPlugin::getChunk()

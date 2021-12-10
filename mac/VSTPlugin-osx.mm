@@ -17,9 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "../headers/VSTPlugin.h"
 
-AEffect *VSTPlugin::loadEffect() {
-  AEffect *newEffect = NULL;
-
+void *VSTPlugin::loadLibrary() {
   // Create a path to the bundle
   CFStringRef pluginPathStringRef = CFStringCreateWithCString(
       NULL, pluginPath.c_str(), kCFStringEncodingUTF8);
@@ -33,6 +31,12 @@ AEffect *VSTPlugin::loadEffect() {
 
   // Open the bundle
   bundle = CFBundleCreate(kCFAllocatorDefault, bundleUrl);
+  return bundle;
+}
+
+AEffect *VSTPlugin::loadEffect() {
+  AEffect *newEffect = NULL;
+
   if (bundle == NULL) {
     blog(LOG_WARNING, "Couldn't create VST bundle reference.");
     CFRelease(pluginPathStringRef);

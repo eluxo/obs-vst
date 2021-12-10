@@ -24,6 +24,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <string>
 #include <QDirIterator>
+#include <QMutex>
 #include <obs-module.h>
 #include "aeffectx.h"
 #include "vst-plugin-callbacks.hpp"
@@ -34,6 +35,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #endif
 
 class EditorWidget;
+
+
+typedef QPair<int32_t, QString> VstShellItem;
+typedef QList<VstShellItem>     VstShellItemList;
 
 class VSTPlugin : public QObject {
 	Q_OBJECT
@@ -58,6 +63,13 @@ class VSTPlugin : public QObject {
 	// Remove below... or comment out
 	char vendorString[64];
 
+	int32_t currentId;
+
+	VstShellItemList shellItems;
+
+	static QMutex     initMutex;
+	static VSTPlugin *initPlugin;
+
 #ifdef __APPLE__
 	CFBundleRef bundle = NULL;
 #elif WIN32
@@ -66,6 +78,7 @@ class VSTPlugin : public QObject {
 	void *soHandle = nullptr;
 #endif
 
+	void *loadLibrary();
 	void unloadLibrary();
 
 	static intptr_t
@@ -80,17 +93,42 @@ class VSTPlugin : public QObject {
 		case audioMasterVersion:
 			return (intptr_t)2400;
 
+		case audioMasterCurrentId:
+			if (initPlugin) {
+				const uint32_t rc = initPlugin->currentId;
+				initPlugin        = nullptr;
+				return rc;
+			}
+			return 0;
+
+		case audioMasterCanDo:
+			return audioMasterCanDo_static(static_cast<char *>(ptr));
+
 		default:
 			return 0;
 		}
 	}
 
+	static intptr_t
+	audioMasterCanDo_static(const char *canDo) {
+		if (!strcmp(canDo, "shellCategory")) {
+			return 1;
+		}
+		blog(LOG_WARNING,
+			"Deny unknown capability,"
+			" %s",
+			canDo);
+		return 0;
+	}
+
 	intptr_t hostCallback(AEffect *effect, int32_t opcode, int32_t index, intptr_t value, void *ptr, float opt);
+
+	bool updateShellItemList();
 
 public:
 	VSTPlugin(obs_source_t *sourceContext);
 	~VSTPlugin();
-	void            loadEffectFromPath(std::string path);
+	void            loadEffectFromPath(std::string path, int32_t id = 0);
 	void            unloadEffect();
 	std::string     getChunk();
 	void            setChunk(std::string data);
@@ -101,6 +139,7 @@ public:
 	bool            openInterfaceWhenActive = false;
 
 	bool isEditorOpen();
+	const VstShellItemList *getShellItems() const;
 
 public slots:
 	void openEditor();

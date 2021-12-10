@@ -19,11 +19,17 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <util/platform.h>
 
+
+void* VSTPlugin::loadLibrary()
+{
+	soHandle = os_dlopen(pluginPath.c_str());
+	return soHandle;
+}
+
 AEffect* VSTPlugin::loadEffect()
 {
 	AEffect* plugin = nullptr;
 
-	soHandle = os_dlopen(pluginPath.c_str());
 	if (soHandle == nullptr) {
 		blog(LOG_WARNING,
 		     "Failed trying to load VST from '%s',"
