@@ -17,6 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *****************************************************************************/
 
 #include "headers/VSTPlugin.h"
+#include "headers/VSTScanner.h"
 
 #define OPEN_VST_SETTINGS "open_vst_settings"
 #define CLOSE_VST_SETTINGS "close_vst_settings"
@@ -271,6 +272,8 @@ bool obs_module_load(void)
 	vst_filter.filter_audio           = vst_filter_audio;
 	vst_filter.get_properties         = vst_properties;
 	vst_filter.save                   = vst_save;
+
+	VstScanner::getInstance()->rescan();
 
 	obs_register_source(&vst_filter);
 	return true;
