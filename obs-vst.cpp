@@ -84,12 +84,14 @@ static void vst_update(void *data, obs_data_t *settings)
 
 	vstPlugin->openInterfaceWhenActive = obs_data_get_bool(settings, OPEN_WHEN_ACTIVE_VST_SETTINGS);
 
-	const char *path = obs_data_get_string(settings, "plugin_path");
+	const char *pluginId = obs_data_get_string(settings, "plugin_id");
+	auto        scanner  = VstScanner::getInstance();
+	auto        effectInfo   = scanner->getEffectById(pluginId);
 
-	if (strcmp(path, "") == 0) {
+	if (effectInfo == nullptr) {
 		return;
 	}
-	vstPlugin->loadEffectFromPath(std::string(path));
+	vstPlugin->loadEffectFromInfo(*effectInfo);
 
 	const char *chunkData = obs_data_get_string(settings, "chunk_data");
 	if (chunkData && strlen(chunkData) > 0) {
@@ -127,6 +129,19 @@ static struct obs_audio_data *vst_filter_audio(void *data, struct obs_audio_data
 	return audio;
 }
 
+static void fill_out_plugins(obs_property_t *list) {
+	obs_property_list_add_string(list, "{Please select a plug-in}", nullptr);
+
+	auto scanner = VstScanner::getInstance();
+	auto effects  = scanner->getEffects();
+	for (auto it = effects->constBegin(); it != effects->constEnd(); ++it) {
+		QString label = QString("%1 (%2)").arg(it->effectName, it->vendorString);
+		QString id    = it->id;
+		obs_property_list_add_string(list, label.toUtf8().data(), id.toUtf8().data());
+	}
+}
+
+#if 0
 static void fill_out_plugins(obs_property_t *list)
 {
 	QStringList dir_list;
@@ -235,13 +250,14 @@ static void fill_out_plugins(obs_property_t *list)
 		                             vst_sorted.mid(vst_sorted.indexOf('=') + 1).toStdString().c_str());
 	}
 }
+#endif
 
 static obs_properties_t *vst_properties(void *data)
 {
 	VSTPlugin *       vstPlugin = (VSTPlugin *)data;
 	obs_properties_t *props     = obs_properties_create();
 	obs_property_t *  list      = obs_properties_add_list(
-                props, "plugin_path", PLUG_IN_NAME, OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+                props, "plugin_id", PLUG_IN_NAME, OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 
 	fill_out_plugins(list);
 

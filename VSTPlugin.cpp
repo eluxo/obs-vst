@@ -18,9 +18,15 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "headers/VSTPlugin.h"
 
+#include <QMutex>
+
+QMutex VSTPlugin::currentIdMutex;
+int32_t VSTPlugin::currentId = 0;
+
 VSTPlugin::VSTPlugin(obs_source_t *sourceContext) : sourceContext{sourceContext}
 {
-
+	memset(effectName, 0, sizeof(effectName));
+	memset(vendorString, 0, sizeof(vendorString));
 	int numChannels = VST_MAX_CHANNELS;
 	int blocksize   = BLOCK_SIZE;
 
@@ -58,16 +64,20 @@ VSTPlugin::~VSTPlugin()
 	unloadEffect();
 }
 
-void VSTPlugin::loadEffectFromPath(std::string path)
+void VSTPlugin::loadEffectFromInfo(const VstEffectInfo &info)
 {
-	if (this->pluginPath.compare(path) != 0) {
+	if (this->current.id != info.id) {
 		closeEditor();
 		unloadEffect();
-		blog(LOG_INFO, "User selected new VST plugin: '%s'", path.c_str());
+		blog(LOG_INFO, "User selected new VST plugin: '%s'", info.effectName.toUtf8().data());
 	}
 
 	if (!effect) {
-		pluginPath = path;
+		current    = info;
+		pluginPath = info.filePath.toStdString();
+
+		QMutexLocker lock(&VSTPlugin::currentIdMutex);
+		VSTPlugin::currentId = info.pluginId;
 		effect     = loadEffect();
 
 		if (!effect) {
@@ -92,7 +102,7 @@ void VSTPlugin::loadEffectFromPath(std::string path)
 
 		// This check logic is refer to open source project : Audacity
 		if ((effect->flags & effFlagsIsSynth) || !(effect->flags & effFlagsCanReplacing)) {
-			blog(LOG_WARNING, "VST Plug-in can't support replacing. '%s'", path.c_str());
+			blog(LOG_WARNING, "VST Plug-in can't support replacing. '%s'", pluginPath.c_str());
 			return;
 		}
 

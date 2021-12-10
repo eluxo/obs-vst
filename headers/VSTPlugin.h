@@ -23,11 +23,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define BLOCK_SIZE 512
 
 #include <string>
+#include <QMutex>
 #include <QDirIterator>
 #include <obs-module.h>
 #include "aeffectx.h"
 #include "vst-plugin-callbacks.hpp"
 #include "EditorWidget.h"
+#include "VSTScanner.h"
 
 #ifdef __APPLE__
 #include <CoreFoundation/CoreFoundation.h>
@@ -41,6 +43,7 @@ class VSTPlugin : public QObject {
 	AEffect *     effect = nullptr;
 	obs_source_t *sourceContext;
 	std::string   pluginPath;
+	VstEffectInfo current;
 
 	float **inputs;
 	float **outputs;
@@ -54,7 +57,7 @@ class VSTPlugin : public QObject {
 
 	std::string sourceName;
 	std::string filterName;
-	char        effectName[64];
+	char effectName[64];
 	// Remove below... or comment out
 	char vendorString[64];
 
@@ -68,6 +71,9 @@ class VSTPlugin : public QObject {
 
 	void unloadLibrary();
 
+	static QMutex currentIdMutex;
+	static int32_t currentId;
+
 	static intptr_t
 	hostCallback_static(AEffect *effect, int32_t opcode, int32_t index, intptr_t value, void *ptr, float opt)
 	{
@@ -80,6 +86,12 @@ class VSTPlugin : public QObject {
 		case audioMasterVersion:
 			return (intptr_t)2400;
 
+		case audioMasterCurrentId:
+			return currentId;
+
+		case audioMasterCanDo:
+			return masterCanDo_static(static_cast<const char *>(ptr));
+
 		default:
 			return 0;
 		}
@@ -90,7 +102,7 @@ class VSTPlugin : public QObject {
 public:
 	VSTPlugin(obs_source_t *sourceContext);
 	~VSTPlugin();
-	void            loadEffectFromPath(std::string path);
+	void            loadEffectFromInfo(const VstEffectInfo &info);
 	void            unloadEffect();
 	std::string     getChunk();
 	void            setChunk(std::string data);

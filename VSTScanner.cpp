@@ -24,7 +24,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <QDir>
 #include <QDirIterator>
 
-bool masterCanDo(const char* what)
+bool masterCanDo_static(const char* what)
 {
 	if (!strcmp("shellCategory", what)) {
 		return true;
@@ -40,7 +40,7 @@ hostCallback_static(AEffect* effect, int32_t opcode, int32_t index, intptr_t val
 		return (intptr_t)2400;
 
 	case audioMasterCanDo:
-		return masterCanDo(static_cast<const char*>(ptr));
+		return masterCanDo_static(static_cast<const char*>(ptr));
 
 	case audioMasterCurrentId:
 		return 0;
@@ -62,14 +62,14 @@ VstScanner* VstScanner::getInstance() {
 void VstScanner::rescan()
 {
 	NamePathList libraries = getLibraryList();
-	VstPluginList plugins;
+	VstPluginList newEffectList;
 
 	for(auto it = libraries.constBegin(); it != libraries.constEnd(); ++it) {
 		blog(LOG_WARNING, "reading %s", (*it).second.toUtf8().constData());
-		readVstInfo(&plugins, *it);
+		readVstInfo(&newEffectList, *it);
 	}
 
-	for (auto it = plugins.constBegin(); it != plugins.constEnd(); ++it) {
+	for (auto it = newEffectList.constBegin(); it != newEffectList.constEnd(); ++it) {
 		blog(LOG_INFO,
 		     "VST: %s (%s) %d %s",
 		     it->effectName.toUtf8().data(),
@@ -78,18 +78,32 @@ void VstScanner::rescan()
 		     it->fileName.toUtf8().data());
 	}
 
+	std::stable_sort(newEffectList.begin(), newEffectList.end(), [](auto a, auto b) -> bool { return a.less(b); });
+	effectList = newEffectList;
+}
 
-	blog(LOG_WARNING, "end");
+const QList<VstEffectInfo>* VstScanner::getEffects() const {
+	return &effectList;
+}
+
+const VstEffectInfo* VstScanner::getEffectById(const QString& id) const {
+	for (auto it = effectList.constBegin(); it != effectList.constEnd(); ++it) {
+		if (it->id == id) {
+			return &(*it);
+		}
+	}
+	return nullptr;
 }
 
 void VstScanner::readVstInfo(VstPluginList* pluginList, const NamePathInfo& info) const
 {
-	LibraryHandle handle;
+	LibraryHandle handle = nullptr;
+	AEffect*      effect = nullptr;
 	try {
 		handle = loadLibrary(info.second);
 		auto mainEntry   = getVstMain(handle);
-		auto plugin      = mainEntry(hostCallback_static);
-		if (!plugin) {
+		effect      = mainEntry(hostCallback_static);
+		if (!effect) {
 			blog(LOG_WARNING,
 			     "Initialization of plugin failed, "
 			     "%s",
@@ -97,36 +111,36 @@ void VstScanner::readVstInfo(VstPluginList* pluginList, const NamePathInfo& info
 			return;
 		}
 
-		if (!isVstPlugin(plugin)) {
+		if (!isVstFile(effect)) {
 			return;
 		}
 
 		QByteArray buffer(64, '\0');
-		plugin->dispatcher(plugin, effGetVendorString, 0, 0, buffer.data(), 0);
+		effect->dispatcher(effect, effGetVendorString, 0, 0, buffer.data(), 0);
 		QString vendorString = QString::fromUtf8(buffer);
 
-		if (isShellPlugin(plugin)) {
-			enumerateShell(pluginList, plugin, vendorString, info);
+		if (isShellPlugin(effect)) {
+			enumerateShell(pluginList, effect, vendorString, info);
 		} else {
-			VstPluginInfo entry;
+			VstEffectInfo entry;
 			entry.vendorString = vendorString;
 			entry.filePath     = info.second;
 			entry.fileName     = info.first;
-
+			
 			buffer.fill('\0');
-			plugin->dispatcher(plugin, effGetEffectName, 0, 0, buffer.data(), 0);
+			effect->dispatcher(effect, effGetEffectName, 0, 0, buffer.data(), 0);
 			entry.effectName = QString::fromUtf8(buffer);
 
+			entry.id = makeEffectId(entry);
 			pluginList->push_back(entry);
 		}
-
-		// TODO: make sure that we clean up the effect instance here
 	} catch (...) {
-		closeLibrary(handle);
 	}
+	closeEffect(effect);
+	closeLibrary(handle);
 }
 
-bool VstScanner::isVstPlugin(AEffect* plugin) const
+bool VstScanner::isVstFile(AEffect* plugin) const
 {
 	if (!plugin) {
 		throw std::exception("Got null instead of effect instance.");
@@ -150,7 +164,7 @@ void VstScanner::enumerateShell(VstPluginList* pluginList, AEffect* plugin, cons
 	QByteArray buffer(64, '\0');
 
 	while (true) {
-		VstPluginInfo entry;
+		VstEffectInfo entry;
 		entry.filePath     = info.second;
 		entry.fileName     = info.first;
 		entry.vendorString = vendorString;
@@ -162,8 +176,23 @@ void VstScanner::enumerateShell(VstPluginList* pluginList, AEffect* plugin, cons
 		}
 		entry.effectName = QString::fromUtf8(buffer);
 
+		entry.id = makeEffectId(entry);
 		pluginList->push_back(entry);
 	}
+}
+
+void VstScanner::closeEffect(AEffect* effect) const {
+	if (!effect) {
+		return;
+	}
+	effect->dispatcher(effect, effMainsChanged, 0, 0, nullptr, 0);
+	effect->dispatcher(effect, effClose, 0, 0, nullptr, 0.0f);
+}
+
+QString VstScanner::makeEffectId(const VstEffectInfo &info) const {
+	return QString("%1:%2").arg(
+		info.filePath,
+		QString::number(info.pluginId));
 }
 
 VstScanner::NamePathList VstScanner::getLibraryList() const

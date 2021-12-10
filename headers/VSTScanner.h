@@ -20,7 +20,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #pragma once
 
 #include <QString>
-#include <QHash>
 #include <QPair>
 #include <QList>
 
@@ -33,7 +32,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <xcb/xcb.h>
 #endif
 
-class VstPluginInfo {
+bool masterCanDo_static(const char* what);
+
+class VstEffectInfo {
 public:
 	QString       id;
 	QString       fileName;
@@ -43,14 +44,15 @@ public:
 	bool          shell;
 	int32_t       pluginId;
 
-	VstPluginInfo() : shell(false), pluginId(0) {}
-	virtual ~VstPluginInfo() {}
+	VstEffectInfo() : shell(false), pluginId(0) {}
+	virtual ~VstEffectInfo() {}
+	bool less(const VstEffectInfo& o) { return effectName < o.effectName;  }
 };
 
 class VstScanner {
 	typedef QPair<QString, QString> NamePathInfo;
 	typedef QList<NamePathInfo>     NamePathList;
-	typedef QList<VstPluginInfo>    VstPluginList;
+	typedef QList<VstEffectInfo>    VstPluginList;
 
 #ifdef __APPLE__
 	typedef CFBundleRef LibraryHandle;
@@ -60,16 +62,18 @@ class VstScanner {
 	typedef void*       LibraryHandle;
 #endif
 
-	QHash<QString, VstPluginInfo> plugins;
+	QList<VstEffectInfo> effectList;
 
 	VstScanner();
 
 	NamePathList  getLibraryList() const;
 	void          readVstInfo(VstPluginList* pluginList, const NamePathInfo& info) const;
-	bool          isVstPlugin(AEffect* plugin) const;
-	bool          isShellPlugin(AEffect* plugin) const;
+	bool          isVstFile(AEffect* effect) const;
+	bool          isShellPlugin(AEffect* effect) const;
 	void          enumerateShell(VstPluginList* pluginList, AEffect* plugin, const QString &vendorString, const NamePathInfo& info) const;
-
+	void          closeEffect(AEffect* effect) const;
+	QString       makeEffectId(const VstEffectInfo &info) const;
+	
 #pragma region PLATFORM SPECIFIC
 	LibraryHandle loadLibrary(const QString& file) const;
 	void          closeLibrary(LibraryHandle& handle) const;
@@ -82,5 +86,7 @@ public:
 	static VstScanner *getInstance();
 	virtual ~VstScanner();
 	void rescan();
+	const QList<VstEffectInfo> *getEffects() const;
+	const VstEffectInfo        *getEffectById(const QString& id) const;
 };
 
