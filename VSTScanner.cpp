@@ -143,7 +143,7 @@ void VstScanner::readVstInfo(VstPluginList* pluginList, const NamePathInfo& info
 bool VstScanner::isVstFile(AEffect* plugin) const
 {
 	if (!plugin) {
-		throw std::exception("Got null instead of effect instance.");
+		throw std::runtime_error("Got null instead of effect instance.");
 	}
 
 	if (plugin->magic != kEffectMagic) {

@@ -37,14 +37,14 @@ VstScanner::LibraryHandle VstScanner::loadLibrary(const QString& file) const
 			blog(LOG_WARNING,
 			     "Could not open library, "
 			     "wrong architecture.");
-			throw std::exception("Invalid library architecture.");
+			throw std::runtime_error("Invalid library architecture.");
 		} else {
 			blog(LOG_WARNING,
 			     "Failed trying to load VST from '%s'"
 			     ", error %d\n",
 			     file.toUtf8().constData(),
 			     GetLastError());
-			throw std::exception("Error while loading VST");
+			throw std::runtime_error("Error while loading VST");
 		}
 		
 	}
@@ -60,20 +60,22 @@ void VstScanner::closeLibrary(LibraryHandle& handle) const {
 
 vstPluginMain VstScanner::getVstMain(LibraryHandle& handle) const {
 	if (!handle) {
-		throw std::exception("Cannot find vst main method on null handle.");
+		throw std::runtime_error("Cannot find vst main method on null handle.");
 	}
 
-	vstPluginMain rc = nullptr;
-	do {
-		if (rc = (vstPluginMain)GetProcAddress(handle, "VSTPluginMain"))
-			continue;
-		if (rc = (vstPluginMain)GetProcAddress(handle, "VstPluginMain()"))
-			continue;
-		if (rc = (vstPluginMain)GetProcAddress(handle, "main"))
-			continue;
-		blog(LOG_WARNING, "Couldn't get a pointer to plug-in's main()");
-		throw std::exception("No VST main in library");
-	} while (false);
+	vstPluginMain rc;
+	if ((rc = (vstPluginMain)GetProcAddress(handle, "VSTPluginMain"))) {
+		return rc;
+	}
 
-	return rc;
+	if ((rc = (vstPluginMain)GetProcAddress(handle, "VstPluginMain()"))) {
+		return rc;
+	}
+
+	if ((rc = (vstPluginMain)GetProcAddress(handle, "main"))) {
+		return rc;
+	}
+
+	blog(LOG_WARNING, "Couldn't get a pointer to plug-in's main()");
+	throw std::runtime_error("No VST main in library");
 }
