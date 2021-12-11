@@ -65,7 +65,7 @@ void VstScanner::rescan()
 	VstPluginList newEffectList;
 
 	for(auto it = libraries.constBegin(); it != libraries.constEnd(); ++it) {
-		blog(LOG_WARNING, "reading %s", (*it).second.toUtf8().constData());
+		blog(LOG_INFO, "reading %s", (*it).second.toUtf8().constData());
 		readVstInfo(&newEffectList, *it);
 	}
 
