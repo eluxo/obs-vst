@@ -81,12 +81,24 @@ static void vst_destroy(void *data)
 static void vst_update(void *data, obs_data_t *settings)
 {
 	VSTPlugin *vstPlugin = (VSTPlugin *)data;
+	const VstEffectInfo *effectInfo;
 
 	vstPlugin->openInterfaceWhenActive = obs_data_get_bool(settings, OPEN_WHEN_ACTIVE_VST_SETTINGS);
 
-	const char *pluginId = obs_data_get_string(settings, "plugin_id");
-	auto        scanner  = VstScanner::getInstance();
-	auto        effectInfo   = scanner->getEffectById(pluginId);
+	const char *pluginPath = obs_data_get_string(settings,   "plugin_path");
+	const char *pluginId     = obs_data_get_string(settings, "plugin_id");
+
+	auto        scanner      = VstScanner::getInstance();
+	const VstEffectInfo *effectInfo;
+	
+	if (pluginId) {
+		effectInfo = scanner->getEffectById(pluginId);
+	} else {
+		effectInfo = scanner->getEffectByPath(pluginPath);
+		if (effectInfo) {
+			obs_data_set_string(settings, "plugin_id", effectInfo->id.toUtf8().data());
+		}
+	}
 
 	if (effectInfo == nullptr) {
 		return;

@@ -95,6 +95,16 @@ const VstEffectInfo* VstScanner::getEffectById(const QString& id) const {
 	return nullptr;
 }
 
+const VstEffectInfo* VstScanner::getEffectByPath(const QString& path) const {
+	// import from legacy settings, so the user does not lose anything.
+	for (auto it = effectList.constBegin(); it != effectList.constEnd(); ++it) {
+		if (it->filePath == path) {
+			return &(*it);
+		}
+	}
+	return nullptr;
+}
+
 void VstScanner::readVstInfo(VstPluginList* pluginList, const NamePathInfo& info) const
 {
 	LibraryHandle handle = nullptr;

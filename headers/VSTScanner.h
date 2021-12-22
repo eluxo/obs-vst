@@ -88,5 +88,6 @@ public:
 	void rescan();
 	const QList<VstEffectInfo> *getEffects() const;
 	const VstEffectInfo        *getEffectById(const QString& id) const;
+	const VstEffectInfo        *getEffectByPath(const QString& path) const;
 };
 
