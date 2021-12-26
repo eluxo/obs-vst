@@ -44,9 +44,11 @@ public:
 	bool          shell;
 	int32_t       pluginId;
 
-	VstEffectInfo() : shell(false), pluginId(0) {}
-	virtual ~VstEffectInfo() {}
-	bool less(const VstEffectInfo& o) { return effectName < o.effectName;  }
+	VstEffectInfo();
+	explicit VstEffectInfo(obs_data_t* data);
+	virtual ~VstEffectInfo();
+	bool less(const VstEffectInfo& o) const;
+	obs_data_t *toObsData() const;
 };
 
 class VstScanner {
@@ -80,12 +82,15 @@ class VstScanner {
 	vstPluginMain getVstMain(LibraryHandle& handle) const;
 #pragma endregion
 
-	
+	void saveList() const;
+	bool loadList();
+	void mkdirs() const;
 
 public:
 	static VstScanner *getInstance();
 	virtual ~VstScanner();
-	void rescan();
+	void                        rescan();
+	void                        init();
 	const QList<VstEffectInfo> *getEffects() const;
 	const VstEffectInfo        *getEffectById(const QString& id) const;
 	const VstEffectInfo        *getEffectByPath(const QString& path) const;

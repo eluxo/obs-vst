@@ -89,9 +89,8 @@ static void vst_update(void *data, obs_data_t *settings)
 	const char *pluginId     = obs_data_get_string(settings, "plugin_id");
 
 	auto        scanner      = VstScanner::getInstance();
-	const VstEffectInfo *effectInfo;
 	
-	if (pluginId) {
+	if (pluginId && strcmp(pluginId, "")) {
 		effectInfo = scanner->getEffectById(pluginId);
 	} else {
 		effectInfo = scanner->getEffectByPath(pluginPath);
@@ -190,7 +189,7 @@ bool obs_module_load(void)
 	vst_filter.get_properties         = vst_properties;
 	vst_filter.save                   = vst_save;
 
-	VstScanner::getInstance()->rescan();
+	VstScanner::getInstance()->init();
 
 	obs_register_source(&vst_filter);
 	return true;

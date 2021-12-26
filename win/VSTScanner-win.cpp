@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "../headers/VSTScanner.h"
 #include <util/platform.h>
 #include <Windows.h>
+#include <stdexcept>
 
 VstScanner::LibraryHandle VstScanner::loadLibrary(const QString& file) const
 {

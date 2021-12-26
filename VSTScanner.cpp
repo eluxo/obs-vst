@@ -21,8 +21,51 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "headers/vst-plugin-callbacks.hpp"
 #include "aeffectx.h"
 
+#include <stdexcept>
 #include <QDir>
 #include <QDirIterator>
+
+#include <obs-module.h>
+#include <util/platform.h>
+
+VstEffectInfo::VstEffectInfo() : shell(false), pluginId(0) {
+
+}
+
+VstEffectInfo::VstEffectInfo(obs_data_t* data) : shell(false), pluginId(0) {
+	id           = obs_data_get_string(data, "id");
+	fileName     = obs_data_get_string(data, "fileName");
+	filePath     = obs_data_get_string(data, "filePath");
+	effectName   = obs_data_get_string(data, "effectName");
+	vendorString = obs_data_get_string(data, "vendorString");
+	shell        = obs_data_get_bool(data, "shell");
+	pluginId     = obs_data_get_int(data, "pluginId");
+
+	blog(LOG_INFO, "VST: %s (%s)", effectName.toUtf8().data(), filePath.toUtf8().data());
+}
+
+VstEffectInfo::~VstEffectInfo() {
+
+}
+
+bool VstEffectInfo::less(const VstEffectInfo& o) const {
+	return effectName < o.effectName;
+}
+
+obs_data_t *VstEffectInfo::toObsData() const {
+	obs_data_t* rc = obs_data_create();
+
+	obs_data_set_string(rc, "id", id.toUtf8().data());
+	obs_data_set_string(rc, "fileName", fileName.toUtf8().data());
+	obs_data_set_string(rc, "filePath", filePath.toUtf8().data());
+	obs_data_set_string(rc, "effectName", effectName.toUtf8().data());
+	obs_data_set_string(rc, "vendorString", vendorString.toUtf8().data());
+	obs_data_set_bool(rc, "shell", shell);
+	obs_data_set_int(rc, "pluginId", pluginId);
+	obs_data_set_string(rc, "id", id.toUtf8().data());
+
+	return rc;
+}
 
 bool masterCanDo_static(const char* what)
 {
@@ -80,6 +123,14 @@ void VstScanner::rescan()
 
 	std::stable_sort(newEffectList.begin(), newEffectList.end(), [](auto a, auto b) -> bool { return a.less(b); });
 	effectList = newEffectList;
+	this->saveList();
+}
+
+void VstScanner::init() {
+	if (loadList()) {
+		return;
+	}
+	rescan();
 }
 
 const QList<VstEffectInfo>* VstScanner::getEffects() const {
@@ -203,6 +254,72 @@ QString VstScanner::makeEffectId(const VstEffectInfo &info) const {
 	return QString("%1:%2").arg(
 		info.filePath,
 		QString::number(info.pluginId));
+}
+
+void VstScanner::saveList() const {
+	auto file = obs_module_config_path("addonlist.json");
+	blog(LOG_INFO, "saving list to: %s", file);
+
+	mkdirs();
+	obs_data_t* output = obs_data_create();
+	try {
+		auto array = obs_data_array_create();
+		for (auto it = effectList.constBegin(); it != effectList.constEnd(); ++it) {
+			obs_data_array_push_back(array, it->toObsData());
+		}
+		obs_data_set_array(output, "vst", array);
+		obs_data_save_json_safe(output, file, ".tmp", ".bkp");
+	} catch (...) {
+	}
+	
+	obs_data_release(output);
+	bfree(file);
+}
+
+bool VstScanner::loadList() {
+	bool rc   = false;
+	auto file = obs_module_config_path("addonlist.json");
+	blog(LOG_INFO, "loading list from: %s", file);
+	mkdirs();
+
+	try {
+		do {
+			auto input = obs_data_create_from_json_file(file);
+			if (!input) {
+				continue;
+			}
+
+			auto         vst   = obs_data_get_array(input, "vst");
+			if (!vst) {
+				continue;
+			}
+
+			rc = true;
+			effectList.clear();
+			auto count = obs_data_array_count(vst);
+			for (auto i = 0; i < count; ++i) {
+				auto data = obs_data_array_item(vst, i);
+				if (!data) {
+					continue;
+				}
+
+				effectList.append(VstEffectInfo(data));
+				obs_data_release(data);
+			}
+			obs_data_array_release(vst);
+			obs_data_release(input);
+		} while (false);
+	} catch (...) {
+	}
+
+	bfree(file);
+	return rc;
+}
+
+void VstScanner::mkdirs() const {
+	auto path = obs_module_config_path(nullptr);
+	os_mkdirs(path);
+	bfree(path);
 }
 
 VstScanner::NamePathList VstScanner::getLibraryList() const
